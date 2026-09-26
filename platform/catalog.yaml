@@ -229,6 +229,50 @@ servers:
         published_port: 18083
         target_port: 8083
 
+  - id: prometheus-observability
+    name: "Prometheus Observability"
+    state: private-canary-green-promotion-pending-access-token
+    portal_enabled: false
+    upstream_repo: "https://github.com/giantswarm/mcp-prometheus"
+    upstream_commit: "f158f0ec55d3e5c6828c8e95f535d2ae9ef72dba"
+    swarm_service: mcp-prometheus-canary_app
+    image: "ghcr.io/conexaoazul/mcp-prometheus@sha256:b5202b307cf6648adcf719c07a0ca69757a7dd409a114fdb654ad8fb4db9560c"
+    placement: blueops-oci-worker-2
+    transport: streamable-http
+    mcp_path: "/prometheus/mcp"
+    observability:
+      health_port: 18141
+      mcp_port: 18140
+      healthz: PASS
+      readyz: PASS
+    protocol_smoke:
+      initialize: PASS
+      server_identity: "mcp-prometheus"
+      tools: 18
+      read_only_true: 18
+      destructive_false: 18
+      idempotent_true: 18
+      open_world_false: 18
+      functional_canary: "execute_query(query=up, limit=5) PASS"
+    proposed_origin:
+      url: "https://mcp-origin.conexaoazul.com/prometheus/mcp"
+      state: "not published yet"
+    proposed_main_portal:
+      default_disabled: true
+      allowlist:
+        - check_ready
+        - execute_query
+        - execute_range_query
+        - get_targets
+        - get_alerts
+        - get_rules
+        - get_metric_metadata
+        - get_runtime_info
+        - get_tsdb_stats
+        - list_label_names
+        - list_label_values
+    promotion_blocker: "Create/store a dedicated Cloudflare Access service token through an approved secret-safe path; do not reuse or expose existing secrets."
+
   - id: portal17-toolbox
     name: "Portal17 Database Toolbox"
     state: active
@@ -268,10 +312,13 @@ code_ready:
     recommended_policy: "keep writes behind portal OAuth and approval gates"
 
   - id: inter-mcp
-    state: active-in-financeiro-portal
+    state: active-hardened-in-financeiro-portal
     runtime_path: "/home/devops/inter-mcp"
     portal_server: banco-inter
-    recommended_policy: "keep read-only; migrate certificate/private key material from host files into Docker Secrets"
+    image: "ghcr.io/conexaoazul/inter-mcp@sha256:884cc8ec1a4adb5aa9cc5767a414553d89a6a0cc22198e1c56d242c7dc3d28c3"
+    runtime_service: inter-mcp-canary_app
+    policy: "6/6 read-only, 0 destructive, 6 idempotent; credentials and TLS material via Docker Secrets"
+    cutover: "Cloudflare Tunnel /inter/* promoted from legacy 5125 to hardened runtime; legacy container and host credential files removed"
 
   - id: dhy-business-mcp
     state: scaled-to-zero
@@ -287,6 +334,15 @@ code_ready:
       - blue_mcp_finops_inter
       - blue_mcp_mass_support
       - blue_mcp_tech_expert
+
+runtime_incidents:
+  - id: odoo_sync_incident_20260926
+    server: odoo-consultas
+    observed: "Cloudflare MCP sync status=error, HTTP 502"
+    root_cause: "Transient MCP-to-Odoo backend connection refusal while MCP gateway/bridge remained healthy"
+    evidence: "crm.lead reads failed with ECONNREFUSED around 22:24; later tool reads/writes recovered"
+    remediation: "Forced Cloudflare server sync after backend recovery"
+    final_state: "ready + connected + 11 tools"
 
 activation_backlog:
   - id: cloudflare-official
