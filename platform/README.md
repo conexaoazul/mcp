@@ -50,27 +50,41 @@ Use `smoke-inspector.sh` for the protocol-level portion.
 
 ## Current findings
 
-- Portal currently exposes six enabled logical servers: Chatwoot, Context7, n8n, Odoo Consultas, Portainer and Uptime Kuma.
+Cloudflare MCP Server Portals is the authoritative control plane. The client-facing `portal_list_servers` view can lag it.
+
+| Portal | Client URL pattern | Current servers |
+|---|---|---:|
+| Main / CRM | `https://mcp.conexaoazul.com/mcp/{server_id}` | 7 |
+| Financeiro | `https://financeiro-mcp.conexaoazul.com/mcp/{server_id}` | 6 |
+| SAMU MAIS AI | `https://samumais-mcp.conexaoazul.com/mcp/{server_id}` | 7 |
+| Portal17 | `https://portal17-mcp.conexaoazul.com/mcp/{server_id}` | 1 |
+
+Main currently includes Context7, Uptime Kuma, Odoo Consultas, n8n, Chatwoot, Portainer and Postiz. Financeiro includes Banco Inter, three Asaas environments, Asaas Docs and Odoo Consultas. SAMU has the read-only replica plus role-specific profiles and the Conta Azul IMTECH/Savvis view. Portal17 has its dedicated Odoo 17 database toolbox server.
+
+- The raw origin is `mcp-origin.conexaoazul.com`; the canonical `mcp.conexaoazul.com` host is Cloudflare MCP Server Portals / Agents Gateway, not a raw reverse-proxy host.
+- The initial six-server portal view is therefore incomplete: Postiz is already ready in the main Portal.
 - Runtime also has Blue Odoo Ops, Apify, Cloudflare official/legacy bridges, Portal17 Toolbox and Transcription MCP.
 - Chatwoot and Portainer bridges include their service prefix in the native Streamable HTTP path (`/chatwoot/mcp` and `/portainer/mcp`). The previous Traefik StripPrefix behavior conflicted with those paths. Higher-priority path-preserving routers were added without removing the legacy routers.
 - Inspector protocol smoke passes directly against both bridges: Chatwoot = **123 tools, 0 schema errors, 17 warnings**; Portainer = **119 tools, 0 schema errors, 2 warnings**.
 - Odoo and Apify gateways answer on `/mcp` with OAuth bearer metadata when called without credentials, confirming their MCP/auth boundary.
 - Cloudflare official bridge returns a valid `tools/list` response locally.
-- Canonical `/apify/mcp` and `/cloudflare/mcp` still require public-edge routing correction; the external host currently returns HTTP 404.
+- Cloudflare official raw origin `https://mcp-origin.conexaoazul.com/cloudflare/mcp` is green and exposes the token-efficient three-tool surface `docs/search/execute`. It is deliberately not promoted to the broad main Portal yet because `execute` can perform writes; constrain authority or explicitly approve Access policy first.
+- Apify raw origin `https://mcp-origin.conexaoazul.com/apify/mcp` is healthy at the auth boundary and returns the expected HTTP 401 Bearer challenge without credentials. Portal publication requires a verified least-privilege auth configuration.
 - There are code-ready assets for SAMU/Blue Database, Asaas, Inter and BlueApps19 MCP modules.
 - Any credential or tunnel token currently embedded in a Docker service argument must be rotated after a secret-backed replacement is prepared.
 
 ## Rollout order
 
-1. Inventory + Inspector smoke in parallel with production.
-2. Fix canonical `mcp.conexaoazul.com` routing without removing existing origin routes.
-3. Deploy SAMU MariaDB MCP in strict read-only mode.
-4. Add Playwright identity smoke.
-5. Integrate Grafana/Loki.
-6. Integrate Terraform for OCI/IaC.
-7. Retire duplicated bridges and direct host ports only after equivalent gateway routes are green.
+1. Keep the Cloudflare Portal inventory synchronized and protocol-smoked.
+2. Fix the stale client discovery view so it reflects Portal membership.
+3. Correct read-only/destructive annotations on SAMU reporting tools.
+4. Publish additional internal MCPs only after authority is constrained: Cloudflare, Apify, Blue Odoo Ops and Transcription.
+5. Add Playwright identity smoke for Odoo/Chatwoot/portal user journeys.
+6. Integrate Grafana/Loki for observability and Terraform for OCI/IaC where they add net-new capability.
+7. Retire duplicated bridges and direct host ports only after equivalent Portal routes are green.
 
 ## Files
 
 - `catalog.yaml`: current inventory and candidate backlog.
 - `smoke-inspector.sh`: reusable MCP protocol smoke.
+- `audit-cloudflare-portals.sh`: current-state Portal audit with readiness/auth/tool-count gates.
