@@ -2,12 +2,15 @@ version: 1
 generated_at: "2026-09-26"
 source_of_truth:
   runtime: "Docker Swarm on azul2"
-  portal: "Conexao Azul MCP Portal"
+  portal_api: "Cloudflare MCP Server Portals / Agents Gateway"
   repository: "conexaoazul/mcp"
+  note: "Conexao Azul portal_list_servers is a client view and may lag the Cloudflare Portal source of truth."
 
 platform:
   canonical_public_base: "https://mcp.conexaoazul.com"
+  canonical_path_pattern: "/mcp/{server_id}"
   origin_public_base: "https://mcp-origin.conexaoazul.com"
+  architecture_note: "mcp.conexaoazul.com is the Cloudflare MCP Portal/Agents Gateway; mcp-origin.conexaoazul.com is the raw tunnel origin."
   default_exposure: "overlay-only"
   ingress_policy: "Cloudflare Access/OAuth -> gateway -> MCP upstream"
   secrets_policy: "Docker Secret or OCI Vault; never inline service args/env"
@@ -18,6 +21,52 @@ platform:
     - "tools/list succeeds"
     - "tool schema lint succeeds or has documented exception"
     - "read-only canary succeeds where applicable"
+
+portals:
+  - id: conexao-azul-odoo
+    name: "Conexao Azul CRM MCP"
+    hostname: "mcp.conexaoazul.com"
+    state: active
+    servers:
+      - {id: context7, tools: 2}
+      - {id: uptime-kuma, tools: 31}
+      - {id: odoo-consultas, tools: 11}
+      - {id: n8n, tools: 33}
+      - {id: chatwoot, tools: 123}
+      - {id: portainer, tools: 119}
+      - {id: postiz, tools: 11}
+
+  - id: financeiro
+    name: "Conexao Azul Financeiro"
+    hostname: "financeiro-mcp.conexaoazul.com"
+    state: active
+    servers:
+      - {id: banco-inter, tools: 6}
+      - {id: asaas-principal, tools: 24}
+      - {id: odoo-consultas, tools: 11}
+      - {id: asaas-sandbox, tools: 24}
+      - {id: asaas-docs, tools: 7}
+      - {id: asaas-blueconnect, tools: 24}
+
+  - id: samu-mais-ai
+    name: "SAMU MAIS AI"
+    hostname: "samumais-mcp.conexaoazul.com"
+    state: active
+    servers:
+      - {id: samumais-replica, tools: 25}
+      - {id: samu-gestao, tools: 7}
+      - {id: samu-coordenacao, tools: 8}
+      - {id: samu-medico, tools: 7}
+      - {id: samu-ti, tools: 5}
+      - {id: samu-diretoria, tools: 8}
+      - {id: contaazul-imtech-savvis, tools: 7}
+
+  - id: portal17
+    name: "Portal17 (Odoo 17)"
+    hostname: "portal17-mcp.conexaoazul.com"
+    state: active
+    servers:
+      - {id: portal17, tools: 8}
 
 servers:
   - id: chatwoot
@@ -120,7 +169,7 @@ servers:
 
   - id: apify
     name: "Apify MCP"
-    state: active-route-needs-fix
+    state: active-origin-auth-gated-not-in-portal
     portal_enabled: false
     runtime:
       auth_service: apify-mcp-auth
@@ -131,7 +180,7 @@ servers:
     exposure:
       - type: configured-public
         url: "https://mcp.conexaoazul.com/apify/mcp"
-        last_probe: "HTTP 404"
+        last_probe: "legacy canonical-path probe was invalid: canonical host is Portal, not raw origin"
         desired: "MCP protocol response behind Access"
       - type: host
         published_port: 18110
@@ -139,7 +188,7 @@ servers:
 
   - id: cloudflare-official
     name: "Cloudflare Official MCP"
-    state: active-route-needs-fix
+    state: active-origin-green-not-in-portal
     portal_enabled: false
     swarm_service: cloudflare-official_official
     image: "ca/cloudflare-official-mcp:20260920"
@@ -209,14 +258,20 @@ code_ready:
     policy: "read-only reporting views"
 
   - id: asaas-mcp
-    state: code-ready
+    state: active-in-financeiro-portal
     runtime_path: "/home/devops/asaas-mcp"
-    recommended_policy: "read-first; gated writes"
+    portal_servers:
+      - asaas-principal
+      - asaas-sandbox
+      - asaas-blueconnect
+      - asaas-docs
+    recommended_policy: "keep writes behind portal OAuth and approval gates"
 
   - id: inter-mcp
-    state: code-ready-security-review-required
+    state: active-in-financeiro-portal
     runtime_path: "/home/devops/inter-mcp"
-    recommended_policy: "move certificate/private key material into secrets before deploy"
+    portal_server: banco-inter
+    recommended_policy: "keep read-only; migrate certificate/private key material from host files into Docker Secrets"
 
   - id: dhy-business-mcp
     state: scaled-to-zero
@@ -232,6 +287,29 @@ code_ready:
       - blue_mcp_finops_inter
       - blue_mcp_mass_support
       - blue_mcp_tech_expert
+
+activation_backlog:
+  - id: cloudflare-official
+    priority: P0
+    readiness: "raw origin https://mcp-origin.conexaoazul.com/cloudflare/mcp returns valid tools/list"
+    tool_surface: 3
+    tools: [docs, search, execute]
+    guardrail: "do not add to broad portal until execute/write authority is constrained or Access policy is explicitly approved"
+
+  - id: apify
+    priority: P1
+    readiness: "raw origin route healthy; bearer gate returns 401 as expected"
+    guardrail: "verify Portal auth credentials and least-privilege before sync"
+
+  - id: blue-odoo-ops
+    priority: P1
+    readiness: "edge + gateway are active on overlay"
+    guardrail: "add dedicated origin route/auth before portal publication"
+
+  - id: transcription
+    priority: P1
+    readiness: "MCP service active; health green"
+    guardrail: "add origin route + bearer/Access policy before portal publication"
 
 priority_candidates:
   - id: inspector
