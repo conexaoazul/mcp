@@ -27,11 +27,16 @@ servers:
     portal_tool_count: 123
     swarm_service: chatwoot-mcp
     image: "ca/chatwoot-mcp-bridge:1.0"
+    bridge_path: "/chatwoot/mcp"
+    transport: streamable-http
     exposure:
       - type: public
-        url: "https://mcp-origin.conexaoazul.com/chatwoot"
+        url: "https://mcp-origin.conexaoazul.com/chatwoot/mcp"
         auth: protected
-        last_probe: "HTTP 302"
+        last_probe: "Cloudflare Access HTTP 302 before auth"
+        router: "chatwootmcp-native"
+        path_preservation_fix: "applied 2026-09-26"
+        protocol_smoke: "PASS: 123 tools; 0 schema errors; 17 warnings"
       - type: host
         published_port: 18102
         target_port: 8102
@@ -73,11 +78,16 @@ servers:
     portal_enabled: true
     swarm_service: portainer-mcp
     image: "ca/portainer-mcp-bridge:1.3-stateful-20260923"
+    bridge_path: "/portainer/mcp"
+    transport: streamable-http-stateful
     exposure:
       - type: public
-        url: "https://mcp-origin.conexaoazul.com/portainer"
+        url: "https://mcp-origin.conexaoazul.com/portainer/mcp"
         auth: protected
-        last_probe: "HTTP 302"
+        last_probe: "Cloudflare Access HTTP 302 before auth"
+        router: "portainermcp-native"
+        path_preservation_fix: "applied 2026-09-26"
+        protocol_smoke: "PASS: 119 tools; 0 schema errors; 2 warnings"
       - type: host
         published_port: 18101
         target_port: 8100
@@ -120,7 +130,7 @@ servers:
       internal_upstream: "http://apify-mcp-discovery:8110"
     exposure:
       - type: configured-public
-        url: "https://mcp.conexaoazul.com/apify/"
+        url: "https://mcp.conexaoazul.com/apify/mcp"
         last_probe: "HTTP 404"
         desired: "MCP protocol response behind Access"
       - type: host
@@ -134,9 +144,10 @@ servers:
     swarm_service: cloudflare-official_official
     image: "ca/cloudflare-official-mcp:20260920"
     upstream: "https://mcp.cloudflare.com/mcp"
+    protocol_smoke: "PASS on local bridge: tools/list HTTP 200"
     exposure:
       - type: configured-public
-        url: "https://mcp.conexaoazul.com/cloudflare/"
+        url: "https://mcp.conexaoazul.com/cloudflare/mcp"
         last_probe: "HTTP 404"
       - type: host
         published_port: 18121
@@ -160,7 +171,9 @@ servers:
     portal_enabled: false
     swarm_service: transcription_mcp
     image: "ghcr.io/conexaoazul/blue-transcription-mcp:1e9d523@sha256:538b6073a3e08825d4c8eaaec6886bcd196d29777eb6ef842fb23b8b6f15f5c6"
-    transport: http
+    transport: streamable-http
+    mcp_path: "/mcp"
+    health_path: "/healthz"
     internal_port: 8083
     exposure:
       - type: host
