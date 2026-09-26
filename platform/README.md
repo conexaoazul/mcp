@@ -52,7 +52,11 @@ Use `smoke-inspector.sh` for the protocol-level portion.
 
 - Portal currently exposes six enabled logical servers: Chatwoot, Context7, n8n, Odoo Consultas, Portainer and Uptime Kuma.
 - Runtime also has Blue Odoo Ops, Apify, Cloudflare official/legacy bridges, Portal17 Toolbox and Transcription MCP.
-- `/apify/` and `/cloudflare/` are configured in the prefix-router but currently return HTTP 404 from the public `mcp.conexaoazul.com` route and must not be promoted until protocol smoke passes.
+- Chatwoot and Portainer bridges include their service prefix in the native Streamable HTTP path (`/chatwoot/mcp` and `/portainer/mcp`). The previous Traefik StripPrefix behavior conflicted with those paths. Higher-priority path-preserving routers were added without removing the legacy routers.
+- Inspector protocol smoke passes directly against both bridges: Chatwoot = **123 tools, 0 schema errors, 17 warnings**; Portainer = **119 tools, 0 schema errors, 2 warnings**.
+- Odoo and Apify gateways answer on `/mcp` with OAuth bearer metadata when called without credentials, confirming their MCP/auth boundary.
+- Cloudflare official bridge returns a valid `tools/list` response locally.
+- Canonical `/apify/mcp` and `/cloudflare/mcp` still require public-edge routing correction; the external host currently returns HTTP 404.
 - There are code-ready assets for SAMU/Blue Database, Asaas, Inter and BlueApps19 MCP modules.
 - Any credential or tunnel token currently embedded in a Docker service argument must be rotated after a secret-backed replacement is prepared.
 
