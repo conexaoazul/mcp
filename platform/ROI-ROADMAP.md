@@ -15,7 +15,7 @@ Use new projects only when they add a capability the current Portals + Swarm + O
 | MCP Inspector in CI | Protocol/identity/tools/schema evidence instead of HTTP 200 | https://github.com/modelcontextprotocol/inspector |
 | Portal audit | Detect stale/error/auth/tool drift across all Portals | local `audit-cloudflare-portals.sh` |
 | Fix discovery drift | Current client view can omit servers already in Cloudflare Portal | Cloudflare Portal API is authoritative |
-| SAMU annotation cleanup | Reporting SQL is read-only but several generated tool annotations declare destructive/write semantics | current Portal tool metadata |
+| SAMU annotation cleanup | **DONE in runtime/Portal:** all six SAMU reporting profiles now advertise 100% read-only/non-destructive; source fix is in conexaoazul/claude-config PR #2 | current Portal tool metadata |
 | Secret hygiene | Move private key/cert and inline tunnel credentials to Docker Secrets / OCI Vault | runtime audit |
 | Image digest pinning | Make promoted MCP runtime reproducible and auditable | current Swarm policy |
 
@@ -26,12 +26,26 @@ Repository: https://github.com/microsoft/playwright-mcp
 
 Use for identity-aware browser smokes: Odoo login, Chatwoot, Portal redirects, chatter flows and self-healing UI tests. Keep it isolated; browser automation is a high-authority capability.
 
-### 2. Grafana + Loki MCP
+### 2. Grafana + Loki MCP — infrastructure already present
 Repositories:
 - https://github.com/grafana/mcp-grafana
 - https://github.com/grafana/loki-mcp
 
-Use for incident investigation across metrics + logs. This is a better observability complement than adding more generic infrastructure MCPs.
+Runtime discovery on 2026-09-26 confirms the existing observability stack:
+- Grafana 11.4.0 on the monitoring overlay
+- Loki 3.3.0
+- Prometheus 3.10.0
+- OpenTelemetry Collector
+- cAdvisor + node-exporter + Fluent Bit
+
+Grafana itself is healthy on the worker that owns the task and requires authentication for data APIs. Therefore **do not deploy another observability stack**. The integration gate is only:
+1. create a dedicated Grafana Service Account with Viewer role;
+2. store its token as a Docker Secret using `GRAFANA_SERVICE_ACCOUNT_TOKEN_FILE`;
+3. run mcp-grafana v1.6.0+ with `--disable-write`, selected read categories and Loki query guardrails;
+4. protocol-smoke it with Inspector;
+5. expose it through a bearer-protected origin and Cloudflare MCP Portal.
+
+Do not enable anonymous Grafana access and do not reuse the human/admin credential.
 
 ### 3. Terraform MCP
 Repository: https://github.com/hashicorp/terraform-mcp-server
