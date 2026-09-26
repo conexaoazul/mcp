@@ -34,7 +34,7 @@ portals:
       - {id: n8n, tools: 33}
       - {id: chatwoot, tools: 123}
       - {id: portainer, tools: 119}
-      - {id: postiz, tools: 11}
+      - {id: postiz, tools: 11, default_disabled: true, reason: "0 tool calls in trailing 30 days"}
 
   - id: financeiro
     name: "Conexao Azul Financeiro"
@@ -44,7 +44,7 @@ portals:
       - {id: banco-inter, tools: 6}
       - {id: asaas-principal, tools: 24}
       - {id: odoo-consultas, tools: 11}
-      - {id: asaas-sandbox, tools: 24}
+      - {id: asaas-sandbox, tools: 24, default_disabled: true, reason: "0 tool calls in trailing 30 days"}
       - {id: asaas-docs, tools: 7}
       - {id: asaas-blueconnect, tools: 24}
 
@@ -334,6 +334,15 @@ code_ready:
       - blue_mcp_finops_inter
       - blue_mcp_mass_support
       - blue_mcp_tech_expert
+
+optimization_events:
+  - id: context_trim_20260926
+    evidence_window: "trailing 30 days"
+    actions:
+      - "Main/postiz: default_disabled=true after 0 tool calls"
+      - "Financeiro/asaas-sandbox: default_disabled=true after 0 tool calls"
+    safety: "Servers remain registered and can be toggled on; no tools or credentials removed"
+    post_change_audit: "4 portals / 21 memberships / 20 unique servers / 0 failing"
 
 runtime_incidents:
   - id: odoo_sync_incident_20260926
