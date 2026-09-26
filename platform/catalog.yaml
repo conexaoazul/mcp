@@ -1,0 +1,262 @@
+version: 1
+generated_at: "2026-09-26"
+source_of_truth:
+  runtime: "Docker Swarm on azul2"
+  portal: "Conexao Azul MCP Portal"
+  repository: "conexaoazul/mcp"
+
+platform:
+  canonical_public_base: "https://mcp.conexaoazul.com"
+  origin_public_base: "https://mcp-origin.conexaoazul.com"
+  default_exposure: "overlay-only"
+  ingress_policy: "Cloudflare Access/OAuth -> gateway -> MCP upstream"
+  secrets_policy: "Docker Secret or OCI Vault; never inline service args/env"
+  readiness_gate:
+    - "transport reachable"
+    - "MCP protocol negotiation"
+    - "server identity matches expected server"
+    - "tools/list succeeds"
+    - "tool schema lint succeeds or has documented exception"
+    - "read-only canary succeeds where applicable"
+
+servers:
+  - id: chatwoot
+    name: "Chatwoot / MagicaChat"
+    state: active
+    portal_enabled: true
+    portal_tool_count: 123
+    swarm_service: chatwoot-mcp
+    image: "ca/chatwoot-mcp-bridge:1.0"
+    exposure:
+      - type: public
+        url: "https://mcp-origin.conexaoazul.com/chatwoot"
+        auth: protected
+        last_probe: "HTTP 302"
+      - type: host
+        published_port: 18102
+        target_port: 8102
+
+  - id: context7
+    name: "Context7 IA Docs"
+    state: active
+    portal_enabled: true
+    exposure:
+      - type: portal
+        route: "context7"
+
+  - id: n8n
+    name: "n8n Automacoes"
+    state: active
+    portal_enabled: true
+    exposure:
+      - type: portal
+        route: "n8n"
+
+  - id: odoo-consultas
+    name: "Odoo Consultas Comercial"
+    state: active
+    portal_enabled: true
+    exposure:
+      - type: portal
+        route: "odoo-consultas"
+    related_runtime:
+      bridge: dr-mcp-odoo-bridge
+      gateway: dr-mcp-odoo-gateway
+      bridge_image: "ca/mcp-odoo:0.8.0-dr-20260919"
+      transport: streamable-http
+      internal_upstream: "http://dr-mcp-odoo-bridge:8000"
+      host_gateway_port: 18081
+
+  - id: portainer
+    name: "Portainer Swarm"
+    state: active
+    portal_enabled: true
+    swarm_service: portainer-mcp
+    image: "ca/portainer-mcp-bridge:1.3-stateful-20260923"
+    exposure:
+      - type: public
+        url: "https://mcp-origin.conexaoazul.com/portainer"
+        auth: protected
+        last_probe: "HTTP 302"
+      - type: host
+        published_port: 18101
+        target_port: 8100
+
+  - id: uptime-kuma
+    name: "Uptime Kuma"
+    state: active
+    portal_enabled: true
+    swarm_service: kuma-mcp
+    image: "davidfuchs/mcp-uptime-kuma@sha256:1b0b0f13b21487e68c9798a29e035cc4afe1d7db284f70966d88a7fbd9e29028"
+    transport: streamable-http
+    internal_port: 3000
+    exposure:
+      - type: portal
+        route: "uptime-kuma"
+
+  - id: blue-odoo-ops
+    name: "Blue Odoo Ops"
+    state: active
+    portal_enabled: false
+    runtime:
+      edge_service: blue-odoo-ops_edge
+      gateway_service: blue-odoo-ops_gateway
+      edge_image: "ca/blue-odoo-mcp-edge:20260926-ops-canary"
+      gateway_image: "ca/mcp-odoo-gateway:1.1-audmulti-20260923"
+      internal_upstream: "http://edge:8000"
+    exposure:
+      - type: overlay
+        note: "Operational Odoo/shell MCP path; keep separated from commercial Odoo MCP."
+
+  - id: apify
+    name: "Apify MCP"
+    state: active-route-needs-fix
+    portal_enabled: false
+    runtime:
+      auth_service: apify-mcp-auth
+      discovery_service: apify-mcp-discovery
+      gateway_image: "ca/mcp-odoo-gateway:dr-20260919"
+      bridge_image: "ca/apify-mcp-bridge:20260920"
+      internal_upstream: "http://apify-mcp-discovery:8110"
+    exposure:
+      - type: configured-public
+        url: "https://mcp.conexaoazul.com/apify/"
+        last_probe: "HTTP 404"
+        desired: "MCP protocol response behind Access"
+      - type: host
+        published_port: 18110
+        target_port: 8080
+
+  - id: cloudflare-official
+    name: "Cloudflare Official MCP"
+    state: active-route-needs-fix
+    portal_enabled: false
+    swarm_service: cloudflare-official_official
+    image: "ca/cloudflare-official-mcp:20260920"
+    upstream: "https://mcp.cloudflare.com/mcp"
+    exposure:
+      - type: configured-public
+        url: "https://mcp.conexaoazul.com/cloudflare/"
+        last_probe: "HTTP 404"
+      - type: host
+        published_port: 18121
+        target_port: 8121
+
+  - id: cloudflare-legacy-bridge
+    name: "Cloudflare Legacy Bridge"
+    state: active
+    portal_enabled: false
+    swarm_service: cloudflare-mcp_cloudflare-mcp
+    image: "ca/cloudflare-mcp-bridge:20260920"
+    exposure:
+      - type: host
+        published_port: 18120
+        target_port: 8120
+    lifecycle: "candidate-for-retirement-after-official-path-is-green"
+
+  - id: transcription
+    name: "Blue Transcription MCP"
+    state: active
+    portal_enabled: false
+    swarm_service: transcription_mcp
+    image: "ghcr.io/conexaoazul/blue-transcription-mcp:1e9d523@sha256:538b6073a3e08825d4c8eaaec6886bcd196d29777eb6ef842fb23b8b6f15f5c6"
+    transport: http
+    internal_port: 8083
+    exposure:
+      - type: host
+        published_port: 18083
+        target_port: 8083
+
+  - id: portal17-toolbox
+    name: "Portal17 Database Toolbox"
+    state: active
+    portal_enabled: false
+    runtime:
+      toolbox_service: portal17-mcp-toolbox
+      gateway_service: portal17-mcp-gateway
+      toolbox_image: "us-central1-docker.pkg.dev/database-toolbox/toolbox/toolbox:latest@sha256:fbb9609b4d738f684795c0d57b341c1a34c8251246c590e6fd2526ffa9fb4fa7"
+      internal_upstream: "http://portal17-mcp-toolbox:5111"
+    exposure:
+      - type: overlay
+
+code_ready:
+  - id: blue-database-mcp
+    repo: "https://github.com/conexaoazul/blue-database-mcp"
+    state: poc-ready
+    focus: "secure multi-engine DB MCP + SAMU"
+    engines:
+      - "conexaoazul/mariadb-mcp"
+      - "conexaoazul/dbhub"
+      - "conexaoazul/mcp-toolbox"
+
+  - id: samu-mcp-toolbox
+    state: config-ready
+    runtime_path: "/home/devops/work/samu-mcp"
+    source: "samu-replica"
+    policy: "read-only reporting views"
+
+  - id: asaas-mcp
+    state: code-ready
+    runtime_path: "/home/devops/asaas-mcp"
+    recommended_policy: "read-first; gated writes"
+
+  - id: inter-mcp
+    state: code-ready-security-review-required
+    runtime_path: "/home/devops/inter-mcp"
+    recommended_policy: "move certificate/private key material into secrets before deploy"
+
+  - id: dhy-business-mcp
+    state: scaled-to-zero
+    swarm_service: dhy-business_business-mcp
+    image: "dhy/business-mcp:local"
+
+  - id: blueapps19-native
+    state: code-available
+    modules:
+      - blue_mcp_server
+      - blue_mcp_governance
+      - blue_mcp_finops
+      - blue_mcp_finops_inter
+      - blue_mcp_mass_support
+      - blue_mcp_tech_expert
+
+priority_candidates:
+  - id: inspector
+    repo: "https://github.com/modelcontextprotocol/inspector"
+    priority: P0
+    purpose: "protocol-level smoke, schema lint, identity and tools/list gate"
+
+  - id: docker-mcp-gateway
+    repo: "https://github.com/docker/mcp-gateway"
+    priority: P0
+    purpose: "catalog, isolation, OAuth, secrets, profiles and unified gateway"
+
+  - id: mcp-registry
+    repo: "https://github.com/modelcontextprotocol/registry"
+    priority: P0
+    purpose: "standard server discovery/catalog"
+
+  - id: mariadb-official
+    repo: "https://github.com/MariaDB/mcp"
+    priority: P0
+    purpose: "SAMU read-only SQL MCP"
+
+  - id: playwright
+    repo: "https://github.com/microsoft/playwright-mcp"
+    priority: P1
+    purpose: "identity-aware UI smoke for Odoo/Chatwoot/portals"
+
+  - id: grafana
+    repo: "https://github.com/grafana/mcp-grafana"
+    priority: P1
+    purpose: "dashboards, Prometheus/Loki and incident investigation"
+
+  - id: terraform
+    repo: "https://github.com/hashicorp/terraform-mcp-server"
+    priority: P1
+    purpose: "OCI IaC and Terraform Registry/HCP workflows"
+
+  - id: sentry
+    repo: "https://github.com/getsentry/sentry-mcp"
+    priority: P2
+    purpose: "errors, traces and debugging if Sentry is adopted"
