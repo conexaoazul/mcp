@@ -1,0 +1,64 @@
+name: MCP Platform CI
+
+on:
+  pull_request:
+    paths:
+      - "platform/**"
+      - ".github/workflows/mcp-platform-ci.yml"
+  push:
+    paths:
+      - "platform/**"
+      - ".github/workflows/mcp-platform-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse catalog YAML
+        run: |
+          python -m pip install --disable-pip-version-check --quiet PyYAML
+          python - <<'PY'
+          import pathlib, yaml
+          p = pathlib.Path("platform/catalog.yaml")
+          doc = yaml.safe_load(p.read_text())
+          assert doc["version"] == 1
+          assert doc["portals"]
+          assert doc["servers"]
+          print("catalog ok")
+          PY
+
+      - name: Syntax-check shell scripts
+        run: |
+          set -euo pipefail
+          for f in platform/*.sh; do
+            bash -n "$f"
+          done
+
+      - name: Reject sensitive artifacts in platform
+        run: |
+          set -euo pipefail
+          bad="$(git ls-files platform | grep -E '\.(pem|key|p12|pfx|env)$' || true)"
+          test -z "$bad" || { echo "Sensitive-looking files tracked:"; echo "$bad"; exit 1; }
+
+      - name: Validate Prometheus safety declaration
+        run: |
+          python - <<'PY'
+          import yaml
+          doc = yaml.safe_load(open("platform/catalog.yaml"))
+          p = next(s for s in doc["servers"] if s["id"] == "prometheus")
+          smoke = p["protocol_smoke"]
+          assert smoke["tools"] == 18
+          assert smoke["read_only_true"] == 18
+          assert smoke["destructive_false"] == 18
+          assert smoke["idempotent_true"] == 18
+          assert smoke["open_world_false"] == 18
+          assert p["main_portal_policy"]["default_disabled"] is True
+          assert p["main_portal_policy"]["on_behalf"] is False
+          assert p["main_portal_policy"]["allowlisted_tools"] == 11
+          print("Prometheus policy ok")
+          PY
