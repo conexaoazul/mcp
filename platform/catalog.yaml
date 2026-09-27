@@ -531,6 +531,16 @@ optimization_events:
       - "Chatwoot upgraded to MCP 2026-07-28 while preserving legacy clients"
     post_change_audit: "4 portals / 23 memberships / 22 unique servers / 0 failing"
 
+  - id: portal_reconciliation_20260927
+    evidence_window: "post Terraform MCP 2026 bridge promotion"
+    actions:
+      - "Terraform Registry added to Main as default-disabled"
+      - "9 Registry-only tools explicitly allowlisted"
+      - "MCP 2026 server/discover and tools/list validated through Access + Cloudflare sync"
+      - "No TFE/HCP credentials or Terraform execution enabled"
+    expected_post_change_audit: "4 portals / 24 memberships / 23 unique servers / 0 failing"
+    authoritative_validation: "pending post-merge audit"
+
 runtime_incidents:
   - id: terraform_cloudflare_protocol_20260927
     server: terraform-registry
