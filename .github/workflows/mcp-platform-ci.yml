@@ -115,6 +115,11 @@ jobs:
           assert t["egress_proxy"]["direct_egress"] is False
           assert t["egress_proxy"]["allowed_domains"] == ["registry.terraform.io"]
           assert t["tool_surface"]["total"] == 9
+          gate = t["cloudflare_portal_gate"]
+          assert gate["status"] == "blocked"
+          assert gate["required_protocol"] == "2026-07-28"
+          assert gate["rollback_complete"] is True
+          assert "FAIL:" in t["protocol_smoke"]["modern_server_discover_2026_07_28"]
 
           stack = yaml.safe_load(open("platform/terraform/stack.yml"))
           app = stack["services"]["app"]
