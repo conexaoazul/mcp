@@ -249,6 +249,43 @@ servers:
         published_port: 18083
         target_port: 8083
 
+  - id: playwright
+    name: "Playwright UI Smoke"
+    state: active-internal-only
+    portal_enabled: false
+    upstream_repo: "https://github.com/microsoft/playwright-mcp"
+    upstream_version: "0.0.82"
+    swarm_service: playwright-mcp-internal_app
+    image: "mcr.microsoft.com/playwright/mcp@sha256:77dccc5ce9e94cb8ae7ebea87ddbb6cd54b05760c4d63c54e16accf2726b8734"
+    placement: azul2
+    transport: streamable-http
+    mcp_path: "/mcp"
+    network: mcp_playwright_internal
+    published_ports: 0
+    runtime_policy:
+      isolated_profile: true
+      webmcp: disabled
+      service_workers: blocked
+      codegen: none
+      image_responses: omit
+      persistent_credentials: false
+      stored_session: false
+    tool_surface:
+      total: 25
+      read_only: 7
+      destructive: 18
+      open_world: 25
+    protocol_smoke:
+      initialize: PASS
+      tools_list: PASS
+      odoo_login_navigation: PASS
+      odoo_url: "https://app.conexaoazul.com/en/web/login"
+      odoo_title: "Login | conexaoazul.com"
+    exposure:
+      - type: overlay
+        note: "No published port and no Cloudflare Portal membership."
+    evidence: "/home/devops/work/playwright-mcp/smoke.mjs"
+
   - id: prometheus
     name: "Prometheus Infra Read Only"
     state: active-hardened-in-main-portal
@@ -396,6 +433,12 @@ runtime_incidents:
     final_state: "ready + connected + 11 tools"
 
 activation_backlog:
+  - id: playwright-publication
+    priority: P0
+    readiness: "internal Swarm service is green; Odoo UI smoke passes"
+    guardrail: "Do not publish to Cloudflare Portal until browser egress has a real SSRF/network boundary. Upstream allowed-origins is explicitly not a security boundary and does not cover redirects."
+    next_gate: "egress allowlist proxy or equivalent network policy + explicit tool allowlist; keep browser_navigate only for controlled smoke"
+
   - id: cloudflare-official
     priority: P0
     readiness: "raw origin https://mcp-origin.conexaoazul.com/cloudflare/mcp returns valid tools/list"
@@ -438,11 +481,6 @@ priority_candidates:
     repo: "https://github.com/MariaDB/mcp"
     priority: P0
     purpose: "SAMU read-only SQL MCP"
-
-  - id: playwright
-    repo: "https://github.com/microsoft/playwright-mcp"
-    priority: P1
-    purpose: "identity-aware UI smoke for Odoo/Chatwoot/portals"
 
   - id: grafana
     repo: "https://github.com/grafana/mcp-grafana"
