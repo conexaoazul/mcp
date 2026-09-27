@@ -1,0 +1,21 @@
+diff --git a/internal/tools/prometheus/tools.go b/internal/tools/prometheus/tools.go
+index 0b811ab..f3172bd 100644
+--- a/internal/tools/prometheus/tools.go
++++ b/internal/tools/prometheus/tools.go
+@@ -249,13 +249,15 @@ func withDynamicPrometheusClient(handler PrometheusHandler, client *Client, sc *
+ // All Prometheus tools in this server are read-only (they query Prometheus/Mimir
+ // without mutating state) and target a bounded Prometheus/Mimir endpoint rather
+ // than the open web, so readOnlyHint is always true and openWorldHint is always
+-// false. destructiveHint and idempotentHint are omitted because they are only
+-// meaningful when readOnlyHint is false.
++// false. BlueOps also emits destructiveHint=false and idempotentHint=true
++// explicitly so clients do not fall back to conservative protocol defaults.
+ func registerPrometheusTools(s *mcpserver.MCPServer, client *Client, sc *server.ServerContext, middleware []ToolMiddleware, toolName string, description string, advice string, handler PrometheusHandler, options ...mcp.ToolOption) {
+ 	allOptions := withPrometheusConnectionParams(options...)
+ 	baseOptions := []mcp.ToolOption{
+ 		mcp.WithDescription(description),
+ 		mcp.WithReadOnlyHintAnnotation(true),
++		mcp.WithDestructiveHintAnnotation(false),
++		mcp.WithIdempotentHintAnnotation(true),
+ 		mcp.WithOpenWorldHintAnnotation(false),
+ 		// Combined with WithInputSchemaValidation() (server-level), this rejects
