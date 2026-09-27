@@ -1,0 +1,31 @@
+version: 1
+defaults:
+  publication: draft
+  paid_overage: false
+  max_provider_failures: 1
+  circuit_breaker_seconds: 30
+  local_first: true
+plans:
+  freemium:
+    routes: [ollama, workers_ai_free]
+    paid_fallback: false
+    hard_stop_on_budget: true
+  pro:
+    routes: [ollama, cloudflare_ai_gateway, workers_ai]
+    paid_fallback: false
+    hard_stop_on_budget: true
+  premium:
+    routes: [ollama, cloudflare_ai_gateway, workers_ai, external_provider]
+    paid_fallback: true
+    hard_stop_on_budget: true
+  enterprise:
+    routes: [private_ollama, cloudflare_ai_gateway, byok]
+    paid_fallback: false
+    tenant_isolation: required
+controls:
+  credentials: vault_or_runtime_only
+  log_prompts: false
+  log_secrets: false
+  require_asset_persistence_before_distribution: true
+  require_human_gate_for_publication: true
+  require_human_gate_for_overage_enablement: true

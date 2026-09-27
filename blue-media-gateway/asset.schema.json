@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BlueMediaAsset",
+  "type": "object",
+  "required": ["asset_id","sha256","provider","model","created_at","mime_type","storage_uri","approval_status"],
+  "properties": {
+    "asset_id": {"type":"string"},
+    "sha256": {"type":"string","pattern":"^[a-f0-9]{64}$"},
+    "provider": {"type":"string"},
+    "model": {"type":"string"},
+    "prompt_hash": {"type":"string"},
+    "created_at": {"type":"string","format":"date-time"},
+    "latency_ms": {"type":"integer","minimum":0},
+    "cost_usd": {"type":["number","null"],"minimum":0},
+    "width": {"type":"integer","minimum":1},
+    "height": {"type":"integer","minimum":1},
+    "mime_type": {"type":"string"},
+    "storage_uri": {"type":"string"},
+    "delivery_url": {"type":["string","null"]},
+    "campaign_id": {"type":["string","null"]},
+    "source_evidence_id": {"type":["string","null"]},
+    "approval_status": {"enum":["generated","validated","approved","rejected"]},
+    "destinations": {"type":"array","items":{"type":"string"}}
+  },
+  "additionalProperties": false
+}

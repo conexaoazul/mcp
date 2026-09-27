@@ -1,0 +1,22 @@
+model_list:
+  - model_name: blue-media-default
+    litellm_params:
+      model: os.environ/BLUE_MEDIA_PRIMARY_MODEL
+      api_key: os.environ/BLUE_MEDIA_PRIMARY_API_KEY
+  - model_name: blue-media-brand
+    litellm_params:
+      model: os.environ/BLUE_MEDIA_BRAND_MODEL
+      api_key: os.environ/BLUE_MEDIA_BRAND_API_KEY
+  - model_name: blue-media-cheap
+    litellm_params:
+      model: os.environ/BLUE_MEDIA_CHEAP_MODEL
+      api_key: os.environ/BLUE_MEDIA_CHEAP_API_KEY
+
+router_settings:
+  num_retries: 1
+  timeout: 90
+  allowed_fails: 1
+  cooldown_time: 30
+
+# Canary only. Provider secrets MUST come from runtime secret injection/Vault.
+# Do not commit credentials. Pin the LiteLLM image version in deployment IaC.
