@@ -35,6 +35,7 @@ portals:
       - {id: chatwoot, tools: 123}
       - {id: portainer, tools: 119}
       - {id: postiz, tools: 11, default_disabled: true, reason: "0 tool calls in trailing 30 days"}
+      - {id: prometheus, tools: 18, default_disabled: true, allowlisted_tools: 11, reason: "read-only observability; opt-in until usage is measured"}
 
   - id: financeiro
     name: "Conexao Azul Financeiro"
@@ -229,22 +230,28 @@ servers:
         published_port: 18083
         target_port: 8083
 
-  - id: prometheus-observability
-    name: "Prometheus Observability"
-    state: private-canary-green-promotion-pending-access-token
-    portal_enabled: false
+  - id: prometheus
+    name: "Prometheus Infra Read Only"
+    state: active-hardened-in-main-portal
+    portal_enabled: true
     upstream_repo: "https://github.com/giantswarm/mcp-prometheus"
     upstream_commit: "f158f0ec55d3e5c6828c8e95f535d2ae9ef72dba"
+    local_patch: "platform/patches/mcp-prometheus-safe-annotations.patch"
     swarm_service: mcp-prometheus-canary_app
     image: "ghcr.io/conexaoazul/mcp-prometheus@sha256:b5202b307cf6648adcf719c07a0ca69757a7dd409a114fdb654ad8fb4db9560c"
     placement: blueops-oci-worker-2
     transport: streamable-http
     mcp_path: "/prometheus/mcp"
-    observability:
-      health_port: 18141
-      mcp_port: 18140
-      healthz: PASS
-      readyz: PASS
+    exposure:
+      - type: public
+        url: "https://mcp-origin.conexaoazul.com/prometheus/mcp"
+        auth: "Cloudflare Access service-token protected"
+      - type: host
+        published_port: 18140
+        target_port: 8080
+      - type: host
+        published_port: 18141
+        target_port: 9091
     protocol_smoke:
       initialize: PASS
       server_identity: "mcp-prometheus"
@@ -253,13 +260,12 @@ servers:
       destructive_false: 18
       idempotent_true: 18
       open_world_false: 18
-      functional_canary: "execute_query(query=up, limit=5) PASS"
-    proposed_origin:
-      url: "https://mcp-origin.conexaoazul.com/prometheus/mcp"
-      state: "not published yet"
-    proposed_main_portal:
+      functional_canary: "execute_query(query=count(up == 1)) PASS; 3 healthy targets observed at promotion"
+    main_portal_policy:
       default_disabled: true
-      allowlist:
+      on_behalf: false
+      allowlisted_tools: 11
+      tools:
         - check_ready
         - execute_query
         - execute_range_query
@@ -271,7 +277,7 @@ servers:
         - get_tsdb_stats
         - list_label_names
         - list_label_values
-    promotion_blocker: "Create/store a dedicated Cloudflare Access service token through an approved secret-safe path; do not reuse or expose existing secrets."
+    evidence: "/home/devops/evidence/mcp/prometheus-main-policy-20260926"
 
   - id: portal17-toolbox
     name: "Portal17 Database Toolbox"
@@ -342,7 +348,7 @@ optimization_events:
       - "Main/postiz: default_disabled=true after 0 tool calls"
       - "Financeiro/asaas-sandbox: default_disabled=true after 0 tool calls"
     safety: "Servers remain registered and can be toggled on; no tools or credentials removed"
-    post_change_audit: "4 portals / 21 memberships / 20 unique servers / 0 failing"
+    post_change_audit: "before Prometheus promotion: 4 portals / 21 memberships / 20 unique servers / 0 failing"
 
 runtime_incidents:
   - id: odoo_sync_incident_20260926
@@ -354,6 +360,11 @@ runtime_incidents:
     final_state: "ready + connected + 11 tools"
 
 activation_backlog:
+  - id: prometheus-portal-audit
+    priority: P0
+    readiness: "Prometheus promoted read-only and default-disabled; rerun authoritative Portal audit after membership change"
+    guardrail: "keep 11-tool allowlist until usage and latency data justify broader exposure"
+
   - id: cloudflare-official
     priority: P0
     readiness: "raw origin https://mcp-origin.conexaoazul.com/cloudflare/mcp returns valid tools/list"
