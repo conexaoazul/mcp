@@ -72,6 +72,7 @@ Main currently includes Context7, Cloudflare Docs, Uptime Kuma, Odoo Consultas, 
 - Cloudflare official raw origin `https://mcp-origin.conexaoazul.com/cloudflare/mcp` is green and exposes the token-efficient three-tool surface `docs/search/execute`. It is deliberately not promoted to the broad main Portal yet because `execute` can perform writes; constrain authority or explicitly approve Access policy first.
 - Apify raw origin `https://mcp-origin.conexaoazul.com/apify/mcp` is healthy at the auth boundary and returns the expected HTTP 401 Bearer challenge without credentials. Portal publication requires a verified least-privilege auth configuration.
 - Prometheus MCP is promoted behind Cloudflare Access using immutable image digest `sha256:b5202b...9560c`; protocol smoke proves 18/18 read-only, destructive=false, idempotent=true and openWorld=false, while the Main portal exposes only 11 allowlisted tools by default.
+- Playwright MCP `0.0.82` is now active **internal-only** on azul2 using immutable MCR digest `sha256:77dccc...b8734`. It has no published ports, uses an isolated in-memory browser profile, disables WebMCP and service workers, and passed a real Odoo login-page smoke. Its 25-tool surface includes 18 tools marked destructive and all 25 are open-world, so Portal publication is blocked until a real egress/SSRF boundary exists.
 - The current authoritative reconciliation is **4 portals / 23 memberships / 22 unique servers / 0 failing** after the Prometheus and Chatwoot protocol cutovers.
 - There are code-ready assets for SAMU/Blue Database, Asaas, Inter and BlueApps19 MCP modules.
 - Any credential or tunnel token currently embedded in a Docker service argument must be rotated after a secret-backed replacement is prepared.
@@ -82,12 +83,15 @@ Main currently includes Context7, Cloudflare Docs, Uptime Kuma, Odoo Consultas, 
 2. Fix the stale client discovery view so it reflects Portal membership.
 3. Correct read-only/destructive annotations on SAMU reporting tools.
 4. Publish additional internal MCPs only after authority is constrained: Cloudflare, Apify, Blue Odoo Ops and Transcription.
-5. Add Playwright identity smoke for Odoo/Chatwoot/portal user journeys.
-6. Integrate Grafana/Loki for observability and Terraform for OCI/IaC where they add net-new capability.
-7. Retire duplicated bridges and direct host ports only after equivalent Portal routes are green.
+5. Keep Playwright internal-only while adding a real egress allowlist/SSRF boundary; then promote only an explicit smoke-tool allowlist.
+6. Add identity-bearing Playwright smoke only after storage-state/secrets handling is approved and secret-backed.
+7. Integrate Grafana/Loki for observability and Terraform for OCI/IaC where they add net-new capability.
+8. Retire duplicated bridges and direct host ports only after equivalent Portal routes are green.
 
 ## Files
 
 - `catalog.yaml`: current inventory and candidate backlog.
 - `smoke-inspector.sh`: reusable MCP protocol smoke.
 - `audit-cloudflare-portals.sh`: current-state Portal audit with readiness/auth/tool-count gates.
+- `playwright/stack.yml`: internal-only Playwright MCP Swarm deployment.
+- `playwright/smoke.mjs`: protocol + Odoo UI smoke executed from the internal overlay.
