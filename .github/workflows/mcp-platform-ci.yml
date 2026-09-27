@@ -63,3 +63,37 @@ jobs:
           assert p["main_portal_policy"]["allowlisted_tools"] == 11
           print("Prometheus policy ok")
           PY
+
+      - name: Validate Playwright egress boundary
+        run: |
+          python - <<'PY'
+          import pathlib, yaml
+          catalog = yaml.safe_load(open("platform/catalog.yaml"))
+          p = next(s for s in catalog["servers"] if s["id"] == "playwright")
+          assert p["portal_enabled"] is False
+          assert p["published_ports"] == 0
+          assert p["network_internal"] is True
+          assert p["egress_proxy"]["direct_egress"] is False
+          assert p["egress_proxy"]["private_ranges_denied"] is True
+
+          stack = yaml.safe_load(open("platform/playwright/stack.yml"))
+          app = stack["services"]["app"]
+          assert "ports" not in app
+          args = app["command"]
+          assert "--proxy-server" in args
+          assert "http://playwright-egress_proxy:3128" in args
+          assert app["networks"] == ["private"]
+
+          squid = pathlib.Path("platform/playwright/squid.conf").read_text()
+          for required in [
+              "acl private_dst dst 10.0.0.0/8",
+              "acl private_dst dst 100.64.0.0/10",
+              "acl private_dst dst 169.254.0.0/16",
+              "acl private_dst dst 172.16.0.0/12",
+              "acl private_dst dst 192.168.0.0/16",
+              "http_access deny private_dst",
+              "http_access deny all",
+          ]:
+              assert required in squid, required
+          print("Playwright egress policy ok")
+          PY
