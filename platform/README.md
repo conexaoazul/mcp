@@ -54,12 +54,12 @@ Cloudflare MCP Server Portals is the authoritative control plane. The client-fac
 
 | Portal | Client URL pattern | Current servers |
 |---|---|---:|
-| Main / CRM | `https://mcp.conexaoazul.com/mcp/{server_id}` | 7 |
+| Main / CRM | `https://mcp.conexaoazul.com/mcp/{server_id}` | 8 |
 | Financeiro | `https://financeiro-mcp.conexaoazul.com/mcp/{server_id}` | 6 |
 | SAMU MAIS AI | `https://samumais-mcp.conexaoazul.com/mcp/{server_id}` | 7 |
 | Portal17 | `https://portal17-mcp.conexaoazul.com/mcp/{server_id}` | 1 |
 
-Main currently includes Context7, Uptime Kuma, Odoo Consultas, n8n, Chatwoot, Portainer and Postiz. Financeiro includes Banco Inter, three Asaas environments, Asaas Docs and Odoo Consultas. SAMU has the read-only replica plus role-specific profiles and the Conta Azul IMTECH/Savvis view. Portal17 has its dedicated Odoo 17 database toolbox server.
+Main currently includes Context7, Uptime Kuma, Odoo Consultas, n8n, Chatwoot, Portainer, Postiz and Prometheus. Prometheus is default-disabled with an explicit 11-tool read-only allowlist. Financeiro includes Banco Inter, three Asaas environments, Asaas Docs and Odoo Consultas. SAMU has the read-only replica plus role-specific profiles and the Conta Azul IMTECH/Savvis view. Portal17 has its dedicated Odoo 17 database toolbox server.
 
 - The raw origin is `mcp-origin.conexaoazul.com`; the canonical `mcp.conexaoazul.com` host is Cloudflare MCP Server Portals / Agents Gateway, not a raw reverse-proxy host.
 - The initial six-server portal view is therefore incomplete: Postiz is already ready in the main Portal.
@@ -70,6 +70,7 @@ Main currently includes Context7, Uptime Kuma, Odoo Consultas, n8n, Chatwoot, Po
 - Cloudflare official bridge returns a valid `tools/list` response locally.
 - Cloudflare official raw origin `https://mcp-origin.conexaoazul.com/cloudflare/mcp` is green and exposes the token-efficient three-tool surface `docs/search/execute`. It is deliberately not promoted to the broad main Portal yet because `execute` can perform writes; constrain authority or explicitly approve Access policy first.
 - Apify raw origin `https://mcp-origin.conexaoazul.com/apify/mcp` is healthy at the auth boundary and returns the expected HTTP 401 Bearer challenge without credentials. Portal publication requires a verified least-privilege auth configuration.
+- Prometheus MCP is promoted behind Cloudflare Access using immutable image digest `sha256:b5202b...9560c`; protocol smoke proves 18/18 read-only, destructive=false, idempotent=true and openWorld=false, while the Main portal exposes only 11 allowlisted tools by default.
 - There are code-ready assets for SAMU/Blue Database, Asaas, Inter and BlueApps19 MCP modules.
 - Any credential or tunnel token currently embedded in a Docker service argument must be rotated after a secret-backed replacement is prepared.
 
