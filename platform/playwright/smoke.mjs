@@ -57,3 +57,27 @@ const url = text.match(/Page URL: ([^\n]+)/)?.[1] || 'unknown';
 const title = text.match(/Page Title: ([^\n]+)/)?.[1] || 'unknown';
 console.log('odoo_url=' + url);
 console.log('odoo_title=' + title);
+
+// Chatwoot/MagicaChat public login smoke.
+r = await post({
+  jsonrpc: '2.0', id: 5, method: 'tools/call',
+  params: { name: 'browser_navigate', arguments: { url: 'https://magicachat.conexaoazul.com/app/login' } },
+}, sid);
+if (r.body.result?.isError) throw new Error('chatwoot navigate failed');
+
+r = await post({
+  jsonrpc: '2.0', id: 6, method: 'tools/call',
+  params: { name: 'browser_snapshot', arguments: {} },
+}, sid);
+const chatText = (r.body.result?.content || []).filter(x => x.type === 'text').map(x => x.text).join('\n');
+console.log('chatwoot_url=' + (chatText.match(/Page URL: ([^\n]+)/)?.[1] || 'unknown'));
+console.log('chatwoot_title=' + (chatText.match(/Page Title: ([^\n]+)/)?.[1] || 'unknown'));
+
+r = await post({
+  jsonrpc: '2.0', id: 7, method: 'tools/call',
+  params: { name: 'browser_navigate', arguments: { url: 'https://example.com/' } },
+}, sid);
+const blocked = r.body.result?.isError === true ||
+  (r.body.result?.content || []).some(x => x.type === 'text' && /403|ERR_|failed|denied/i.test(x.text || ''));
+console.log('external_blocked=' + blocked);
+if (!blocked) throw new Error('egress allowlist failed: example.com was reachable');
