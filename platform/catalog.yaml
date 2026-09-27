@@ -300,6 +300,61 @@ servers:
         note: "No published port and no Cloudflare Portal membership. Browser has no direct internet route; HTTP/HTTPS egress is forced through Squid allowlist."
     evidence: "/home/devops/work/playwright-mcp/smoke.mjs"
 
+  - id: terraform-registry
+    name: "Terraform Registry Read Only"
+    state: active-internal-egress-hardened
+    portal_enabled: false
+    upstream_repo: "https://github.com/hashicorp/terraform-mcp-server"
+    upstream_version: "1.3.0"
+    release_date: "2026-08-26"
+    swarm_service: terraform-mcp-internal_app
+    image: "hashicorp/terraform-mcp-server@sha256:423a6b8e2ee06affcf090892f40c86469caba45fd2448ffa8ca5d717a174f7d5"
+    placement: azul2
+    transport: streamable-http
+    mcp_path: "/mcp"
+    network: mcp_terraform_private
+    network_internal: true
+    published_ports: 0
+    credentials:
+      tfe_token: absent
+      tfe_address: absent
+    runtime_policy:
+      toolsets: [registry]
+      enable_tf_operations: false
+      hcp_tfe_tools: false
+    egress_proxy:
+      service: terraform-egress_proxy
+      image: "ubuntu/squid@sha256:6a097f68bae708cedbabd6188d68c7e2e7a38cedd05a176e1cc0ba29e3bbe029"
+      private_network: mcp_terraform_private
+      egress_network: mcp_terraform_egress
+      allowed_domains: ["registry.terraform.io"]
+      private_ranges_denied: true
+      direct_egress: false
+    tool_surface:
+      total: 9
+      tools:
+        - get_latest_module_version
+        - get_latest_provider_version
+        - get_module_details
+        - get_policy_details
+        - get_provider_capabilities
+        - get_provider_details
+        - search_modules
+        - search_policies
+        - search_providers
+    protocol_smoke:
+      initialize: PASS
+      tools_list: PASS
+      oracle_oci_query: PASS
+      observed_provider_version: "9.3.0"
+      observed_resource: core_instance
+      blocked_external_egress: PASS
+      blocked_private_egress: PASS
+    exposure:
+      - type: overlay
+        note: "No published port or Portal membership. Registry-only public data via allowlisted proxy."
+    evidence: "/home/devops/work/terraform-mcp/smoke.mjs"
+
   - id: prometheus
     name: "Prometheus Infra Read Only"
     state: active-hardened-in-main-portal
@@ -500,11 +555,6 @@ priority_candidates:
     repo: "https://github.com/grafana/mcp-grafana"
     priority: P1
     purpose: "dashboards, Prometheus/Loki and incident investigation"
-
-  - id: terraform
-    repo: "https://github.com/hashicorp/terraform-mcp-server"
-    priority: P1
-    purpose: "OCI IaC and Terraform Registry/HCP workflows"
 
   - id: sentry
     repo: "https://github.com/getsentry/sentry-mcp"
