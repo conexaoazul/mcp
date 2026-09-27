@@ -29,6 +29,7 @@ portals:
     state: active
     servers:
       - {id: context7, tools: 2}
+      - {id: cloudflare-docs, tools: 2}
       - {id: uptime-kuma, tools: 31}
       - {id: odoo-consultas, tools: 11}
       - {id: n8n, tools: 33}
@@ -72,13 +73,21 @@ portals:
 servers:
   - id: chatwoot
     name: "Chatwoot / MagicaChat"
-    state: active
+    state: active-modern-protocol
     portal_enabled: true
     portal_tool_count: 123
     swarm_service: chatwoot-mcp
-    image: "ca/chatwoot-mcp-bridge:1.0"
+    image: "ghcr.io/conexaoazul/chatwoot-mcp@sha256:a09c13e2e30c7d1806709b1b428bd0f8d924b4849b0d88ed7f66a2be276a4726"
+    source_merge: "conexaoazul/chatwoot-mcp#2 -> fa855af0f8f05c638298765ba9026758963e9c78"
     bridge_path: "/chatwoot/mcp"
     transport: streamable-http
+    update_order: stop-first
+    protocol:
+      modern: "2026-07-28"
+      legacy: "2025-11-25"
+      modern_tools: 123
+      legacy_tools: 123
+      production_tool_diff: "0 missing / 0 new"
     exposure:
       - type: public
         url: "https://mcp-origin.conexaoazul.com/chatwoot/mcp"
@@ -90,6 +99,16 @@ servers:
       - type: host
         published_port: 18102
         target_port: 8102
+
+  - id: cloudflare-docs
+    name: "Cloudflare Docs"
+    state: active
+    portal_enabled: true
+    portal_tool_count: 2
+    auth: not_required
+    exposure:
+      - type: portal
+        route: "cloudflare-docs"
 
   - id: context7
     name: "Context7 IA Docs"
@@ -350,7 +369,24 @@ optimization_events:
     safety: "Servers remain registered and can be toggled on; no tools or credentials removed"
     post_change_audit: "before Prometheus promotion: 4 portals / 21 memberships / 20 unique servers / 0 failing"
 
+  - id: portal_reconciliation_20260926
+    evidence_window: "post Prometheus + Chatwoot MCP 2026 cutovers"
+    actions:
+      - "Main/cloudflare-docs discovered as active hosted server"
+      - "Prometheus remains default-disabled with 11-tool allowlist"
+      - "Chatwoot upgraded to MCP 2026-07-28 while preserving legacy clients"
+    post_change_audit: "4 portals / 23 memberships / 22 unique servers / 0 failing"
+
 runtime_incidents:
+  - id: chatwoot_protocol_sync_20260926
+    server: chatwoot
+    observed: "Cloudflare MCP status=error while auth remained connected and 123 tools stayed cataloged"
+    root_cause: "Cloudflare sync used MCP 2026-07-28; production supergateway 3.4.3 only accepted protocol revisions through 2025-11-25"
+    remediation: "Migrated Chatwoot MCP source to @modelcontextprotocol/server 2.0.0 + serveStdio; upgraded bridge to supergateway 4.0.0; source-built image; update_order stop-first for host port 18102"
+    evidence: "Modern server/discover=200; modern tools/list=123; legacy tools/list=123; prod-vs-canary diff 0; real account read succeeded"
+    final_state: "ready + connected + 123 tools"
+    image: "ghcr.io/conexaoazul/chatwoot-mcp@sha256:a09c13e2e30c7d1806709b1b428bd0f8d924b4849b0d88ed7f66a2be276a4726"
+
   - id: odoo_sync_incident_20260926
     server: odoo-consultas
     observed: "Cloudflare MCP sync status=error, HTTP 502"
@@ -360,11 +396,6 @@ runtime_incidents:
     final_state: "ready + connected + 11 tools"
 
 activation_backlog:
-  - id: prometheus-portal-audit
-    priority: P0
-    readiness: "Prometheus promoted read-only and default-disabled; rerun authoritative Portal audit after membership change"
-    guardrail: "keep 11-tool allowlist until usage and latency data justify broader exposure"
-
   - id: cloudflare-official
     priority: P0
     readiness: "raw origin https://mcp-origin.conexaoazul.com/cloudflare/mcp returns valid tools/list"
