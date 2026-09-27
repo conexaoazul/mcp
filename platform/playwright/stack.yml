@@ -25,12 +25,14 @@ services:
       - "5000"
       - --output-max-size
       - "10485760"
+      - --proxy-server
+      - "http://playwright-egress_proxy:3128"
       - --allowed-hosts
       - "playwright-mcp-internal_app,playwright-mcp-internal_app:8931,localhost,127.0.0.1"
       - --allowed-origins
       - "https://app.conexaoazul.com;https://magicachat.conexaoazul.com;https://mcp.conexaoazul.com;https://financeiro-mcp.conexaoazul.com;https://samumais-mcp.conexaoazul.com;https://portal17-mcp.conexaoazul.com"
     networks:
-      - internal
+      - private
     deploy:
       replicas: 1
       placement:
@@ -54,6 +56,6 @@ services:
         failure_action: rollback
 
 networks:
-  internal:
+  private:
     external: true
-    name: mcp_playwright_internal
+    name: mcp_playwright_private

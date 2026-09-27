@@ -72,7 +72,7 @@ Main currently includes Context7, Cloudflare Docs, Uptime Kuma, Odoo Consultas, 
 - Cloudflare official raw origin `https://mcp-origin.conexaoazul.com/cloudflare/mcp` is green and exposes the token-efficient three-tool surface `docs/search/execute`. It is deliberately not promoted to the broad main Portal yet because `execute` can perform writes; constrain authority or explicitly approve Access policy first.
 - Apify raw origin `https://mcp-origin.conexaoazul.com/apify/mcp` is healthy at the auth boundary and returns the expected HTTP 401 Bearer challenge without credentials. Portal publication requires a verified least-privilege auth configuration.
 - Prometheus MCP is promoted behind Cloudflare Access using immutable image digest `sha256:b5202b...9560c`; protocol smoke proves 18/18 read-only, destructive=false, idempotent=true and openWorld=false, while the Main portal exposes only 11 allowlisted tools by default.
-- Playwright MCP `0.0.82` is now active **internal-only** on azul2 using immutable MCR digest `sha256:77dccc...b8734`. It has no published ports, uses an isolated in-memory browser profile, disables WebMCP and service workers, and passed a real Odoo login-page smoke. Its 25-tool surface includes 18 tools marked destructive and all 25 are open-world, so Portal publication is blocked until a real egress/SSRF boundary exists.
+- Playwright MCP `0.0.82` is active **internal-only** on azul2 using immutable MCR digest `sha256:77dccc...b8734`. It has no published ports, uses an isolated in-memory browser profile, disables WebMCP and service workers, and now runs on an `internal=true` overlay with no direct internet route. Browser HTTP/HTTPS is forced through a Squid proxy pinned by digest; the proxy denies private/link-local ranges and only allows `.conexaoazul.com` / `.conexaoazul.com.br`. Odoo and MágicaChat login smokes pass, while `example.com` and private IP navigation are blocked. The remaining Portal gate is tool/session authority, because 18 of 25 upstream tools are marked destructive.
 - The current authoritative reconciliation is **4 portals / 23 memberships / 22 unique servers / 0 failing** after the Prometheus and Chatwoot protocol cutovers.
 - There are code-ready assets for SAMU/Blue Database, Asaas, Inter and BlueApps19 MCP modules.
 - Any credential or tunnel token currently embedded in a Docker service argument must be rotated after a secret-backed replacement is prepared.
@@ -83,7 +83,7 @@ Main currently includes Context7, Cloudflare Docs, Uptime Kuma, Odoo Consultas, 
 2. Fix the stale client discovery view so it reflects Portal membership.
 3. Correct read-only/destructive annotations on SAMU reporting tools.
 4. Publish additional internal MCPs only after authority is constrained: Cloudflare, Apify, Blue Odoo Ops and Transcription.
-5. Keep Playwright internal-only while adding a real egress allowlist/SSRF boundary; then promote only an explicit smoke-tool allowlist.
+5. Keep Playwright internal-only while reviewing an explicit minimal tool allowlist; the egress/SSRF boundary is now implemented and proven.
 6. Add identity-bearing Playwright smoke only after storage-state/secrets handling is approved and secret-backed.
 7. Integrate Grafana/Loki for observability and Terraform for OCI/IaC where they add net-new capability.
 8. Retire duplicated bridges and direct host ports only after equivalent Portal routes are green.
@@ -93,5 +93,7 @@ Main currently includes Context7, Cloudflare Docs, Uptime Kuma, Odoo Consultas, 
 - `catalog.yaml`: current inventory and candidate backlog.
 - `smoke-inspector.sh`: reusable MCP protocol smoke.
 - `audit-cloudflare-portals.sh`: current-state Portal audit with readiness/auth/tool-count gates.
-- `playwright/stack.yml`: internal-only Playwright MCP Swarm deployment.
-- `playwright/smoke.mjs`: protocol + Odoo UI smoke executed from the internal overlay.
+- `playwright/stack.yml`: internal-only Playwright MCP Swarm deployment, forced through the egress proxy.
+- `playwright/egress-stack.yml`: Squid egress proxy with separate private and internet-facing overlays.
+- `playwright/squid.conf`: domain allowlist and private-range deny policy.
+- `playwright/smoke.mjs`: protocol + Odoo/Chatwoot UI smoke plus negative external-egress test.
