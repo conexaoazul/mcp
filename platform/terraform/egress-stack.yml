@@ -1,0 +1,45 @@
+version: "3.8"
+
+services:
+  proxy:
+    image: ubuntu/squid@sha256:6a097f68bae708cedbabd6188d68c7e2e7a38cedd05a176e1cc0ba29e3bbe029
+    configs:
+      - source: squid_conf
+        target: /etc/squid/squid.conf
+    networks:
+      - private
+      - egress
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == azul2
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+        reservations:
+          cpus: "0.05"
+          memory: 64M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 5
+        window: 60s
+      update_config:
+        order: stop-first
+        parallelism: 1
+        failure_action: rollback
+
+configs:
+  squid_conf:
+    external: true
+    name: terraform_squid_conf_20260927
+
+networks:
+  private:
+    external: true
+    name: mcp_terraform_private
+  egress:
+    external: true
+    name: mcp_terraform_egress

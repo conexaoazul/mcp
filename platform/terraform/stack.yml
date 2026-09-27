@@ -1,0 +1,50 @@
+version: "3.8"
+
+services:
+  app:
+    image: hashicorp/terraform-mcp-server@sha256:423a6b8e2ee06affcf090892f40c86469caba45fd2448ffa8ca5d717a174f7d5
+    command:
+      - streamable-http
+      - --transport-host
+      - "0.0.0.0"
+      - --transport-port
+      - "8080"
+      - --mcp-endpoint
+      - /mcp
+      - --toolsets
+      - registry
+    environment:
+      ENABLE_TF_OPERATIONS: "false"
+      HTTPS_PROXY: "http://terraform-egress_proxy:3128"
+      HTTP_PROXY: "http://terraform-egress_proxy:3128"
+      NO_PROXY: "127.0.0.1,localhost"
+      MCP_CORS_MODE: "disabled"
+      LOG_LEVEL: "info"
+    networks:
+      - private
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == azul2
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+        reservations:
+          cpus: "0.05"
+          memory: 64M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 5
+        window: 60s
+      update_config:
+        order: stop-first
+        parallelism: 1
+        failure_action: rollback
+
+networks:
+  private:
+    external: true
+    name: mcp_terraform_private
