@@ -1,5 +1,5 @@
 version: 1
-generated_at: "2026-09-26"
+generated_at: "2026-09-27"
 source_of_truth:
   runtime: "Docker Swarm on azul2"
   portal_api: "Cloudflare MCP Server Portals / Agents Gateway"
@@ -251,7 +251,7 @@ servers:
 
   - id: playwright
     name: "Playwright UI Smoke"
-    state: active-internal-only
+    state: active-internal-egress-hardened
     portal_enabled: false
     upstream_repo: "https://github.com/microsoft/playwright-mcp"
     upstream_version: "0.0.82"
@@ -260,8 +260,17 @@ servers:
     placement: azul2
     transport: streamable-http
     mcp_path: "/mcp"
-    network: mcp_playwright_internal
+    network: mcp_playwright_private
+    network_internal: true
     published_ports: 0
+    egress_proxy:
+      service: playwright-egress_proxy
+      image: "ubuntu/squid@sha256:6a097f68bae708cedbabd6188d68c7e2e7a38cedd05a176e1cc0ba29e3bbe029"
+      private_network: mcp_playwright_private
+      egress_network: mcp_playwright_egress
+      allowed_domains: [".conexaoazul.com", ".conexaoazul.com.br"]
+      private_ranges_denied: true
+      direct_egress: false
     runtime_policy:
       isolated_profile: true
       webmcp: disabled
@@ -281,9 +290,14 @@ servers:
       odoo_login_navigation: PASS
       odoo_url: "https://app.conexaoazul.com/en/web/login"
       odoo_title: "Login | conexaoazul.com"
+      chatwoot_login_navigation: PASS
+      chatwoot_url: "https://magicachat.conexaoazul.com/app/login"
+      chatwoot_title: "Mágica Chat - Conexão Azul"
+      blocked_external_navigation: "PASS: https://example.com blocked"
+      blocked_private_navigation: "PASS: 10.0.0.1 -> HTTP 403 via proxy"
     exposure:
       - type: overlay
-        note: "No published port and no Cloudflare Portal membership."
+        note: "No published port and no Cloudflare Portal membership. Browser has no direct internet route; HTTP/HTTPS egress is forced through Squid allowlist."
     evidence: "/home/devops/work/playwright-mcp/smoke.mjs"
 
   - id: prometheus
@@ -435,9 +449,9 @@ runtime_incidents:
 activation_backlog:
   - id: playwright-publication
     priority: P0
-    readiness: "internal Swarm service is green; Odoo UI smoke passes"
-    guardrail: "Do not publish to Cloudflare Portal until browser egress has a real SSRF/network boundary. Upstream allowed-origins is explicitly not a security boundary and does not cover redirects."
-    next_gate: "egress allowlist proxy or equivalent network policy + explicit tool allowlist; keep browser_navigate only for controlled smoke"
+    readiness: "internal Swarm service is green; Odoo and Chatwoot UI smokes pass; direct egress blocked; Squid allowlist/SSRF boundary proven"
+    guardrail: "Keep Portal publication disabled until an explicit tool allowlist and authentication/session policy are approved. 18 of 25 upstream tools are marked destructive."
+    next_gate: "publish only a minimal default-disabled smoke profile after tool-policy review; identity-bearing storage state remains a separate secret-backed gate"
 
   - id: cloudflare-official
     priority: P0
