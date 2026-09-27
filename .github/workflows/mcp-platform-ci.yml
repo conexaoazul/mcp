@@ -97,3 +97,47 @@ jobs:
               assert required in squid, required
           print("Playwright egress policy ok")
           PY
+
+      - name: Validate Terraform Registry boundary
+        run: |
+          python - <<'PY'
+          import pathlib, yaml
+          catalog = yaml.safe_load(open("platform/catalog.yaml"))
+          t = next(s for s in catalog["servers"] if s["id"] == "terraform-registry")
+          assert t["portal_enabled"] is False
+          assert t["published_ports"] == 0
+          assert t["network_internal"] is True
+          assert t["runtime_policy"]["toolsets"] == ["registry"]
+          assert t["runtime_policy"]["enable_tf_operations"] is False
+          assert t["runtime_policy"]["hcp_tfe_tools"] is False
+          assert t["credentials"]["tfe_token"] == "absent"
+          assert t["credentials"]["tfe_address"] == "absent"
+          assert t["egress_proxy"]["direct_egress"] is False
+          assert t["egress_proxy"]["allowed_domains"] == ["registry.terraform.io"]
+          assert t["tool_surface"]["total"] == 9
+
+          stack = yaml.safe_load(open("platform/terraform/stack.yml"))
+          app = stack["services"]["app"]
+          assert "ports" not in app
+          args = app["command"]
+          assert "--toolsets" in args
+          assert "registry" in args
+          env = app.get("environment", {})
+          assert env.get("ENABLE_TF_OPERATIONS") == "false"
+          assert "TFE_TOKEN" not in env
+          assert "TFE_ADDRESS" not in env
+
+          squid = pathlib.Path("platform/terraform/squid.conf").read_text()
+          for required in [
+              "acl allowed_registry dstdomain registry.terraform.io",
+              "acl private_dst dst 10.0.0.0/8",
+              "acl private_dst dst 100.64.0.0/10",
+              "acl private_dst dst 169.254.0.0/16",
+              "acl private_dst dst 172.16.0.0/12",
+              "acl private_dst dst 192.168.0.0/16",
+              "http_access deny private_dst",
+              "http_access deny all",
+          ]:
+              assert required in squid, required
+          print("Terraform Registry boundary ok")
+          PY
