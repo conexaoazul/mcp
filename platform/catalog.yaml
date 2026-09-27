@@ -37,6 +37,7 @@ portals:
       - {id: portainer, tools: 119}
       - {id: postiz, tools: 11, default_disabled: true, reason: "0 tool calls in trailing 30 days"}
       - {id: prometheus, tools: 18, default_disabled: true, allowlisted_tools: 11, reason: "read-only observability; opt-in until usage is measured"}
+      - {id: terraform-registry, tools: 9, default_disabled: true, allowlisted_tools: 9, reason: "read-only public Registry; opt-in/default-disabled"}
 
   - id: financeiro
     name: "Conexao Azul Financeiro"
@@ -302,28 +303,39 @@ servers:
 
   - id: terraform-registry
     name: "Terraform Registry Read Only"
-    state: active-internal-egress-hardened
-    portal_enabled: false
-    cloudflare_portal_gate:
-      status: blocked
-      required_protocol: "2026-07-28"
-      modern_probe: "FAIL: HTTP 404 Invalid session ID on server/discover"
-      cloudflare_sync: "FAIL: HTTP 502 Version negotiation failed"
-      sdk_dependency: "github.com/mark3labs/mcp-go v0.58.0"
-      rollback_complete: true
-      rollback_detail: "Access app, service token, MCP server and tunnel route removed; tunnel restored from version 100 to 101; no Portal membership created"
-      next_gate: "rebuild on MCP 2026-compatible SDK and require server/discover + tools/list before another promotion"
+    state: active-modern-in-main-portal
+    portal_enabled: true
+    portal_tool_count: 9
     upstream_repo: "https://github.com/hashicorp/terraform-mcp-server"
     upstream_version: "1.3.0"
     release_date: "2026-08-26"
-    swarm_service: terraform-mcp-internal_app
-    image: "hashicorp/terraform-mcp-server@sha256:423a6b8e2ee06affcf090892f40c86469caba45fd2448ffa8ca5d717a174f7d5"
-    placement: azul2
-    transport: streamable-http
-    mcp_path: "/mcp"
-    network: mcp_terraform_private
-    network_internal: true
-    published_ports: 0
+    backend:
+      swarm_service: terraform-mcp-internal_app
+      image: "hashicorp/terraform-mcp-server@sha256:423a6b8e2ee06affcf090892f40c86469caba45fd2448ffa8ca5d717a174f7d5"
+      protocol: "2025-11-25"
+      transport: stdio-via-bridge
+      toolsets: [registry]
+      network: mcp_terraform_private
+      network_internal: true
+      published_ports: 0
+    modern_bridge:
+      swarm_service: terraform-mcp-v2-canary_app
+      image: "ghcr.io/conexaoazul/mcp-legacy-v2-bridge@sha256:21e789a8920fd1b7956ac4b88d72b886bad0c5fedfa1be48dcdf6134715829c9"
+      sdk: "@modelcontextprotocol/server 2.0.0"
+      transport_adapter: "supergateway 4.0.0"
+      pattern: "legacy stdio initialize/tools -> dynamic fromJsonSchema registration -> MCP 2026 Streamable HTTP"
+      server_identity: terraform-registry-modern
+      modern_protocol: "2026-07-28"
+      mcp_path: "/terraform/mcp"
+      network: mcp_terraform_private
+      published_ports: 0
+    origin_relay:
+      swarm_service: terraform-origin_relay
+      image: "nginx@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2"
+      published_port: 18150
+      publish_mode: host
+      exact_path: "/terraform/mcp"
+      fallback: "404"
     credentials:
       tfe_token: absent
       tfe_address: absent
@@ -341,6 +353,8 @@ servers:
       direct_egress: false
     tool_surface:
       total: 9
+      read_only: 9
+      destructive_false: 9
       tools:
         - get_latest_module_version
         - get_latest_provider_version
@@ -353,19 +367,41 @@ servers:
         - search_providers
     protocol_smoke:
       legacy_initialize_2025_11_25: PASS
-      tools_list: PASS
-      modern_server_discover_2026_07_28: "FAIL: HTTP 404 Invalid session ID"
-      oracle_oci_query: PASS
+      modern_server_discover_2026_07_28: PASS
+      modern_tools_list: 9
+      modern_read_only: 9
+      modern_destructive_false: 9
+      modern_oracle_oci_query: PASS
       observed_provider_version: "9.3.0"
       observed_resource: core_instance
+      authenticated_origin_discover: PASS
+      unauthenticated_origin_http: 403
       blocked_external_egress: PASS
       blocked_private_egress: PASS
+    cloudflare_portal_gate:
+      status: promoted
+      required_protocol: "2026-07-28"
+      server_id: terraform-registry
+      server_status: ready
+      authentication_status: connected
+      main_portal:
+        default_disabled: true
+        on_behalf: false
+        allowlisted_tools: 9
+      access_protected: true
     exposure:
+      - type: public
+        url: "https://mcp-origin.conexaoazul.com/terraform/mcp"
+        auth: "Cloudflare Access service-token protected"
+      - type: host-relay
+        published_port: 18150
+        target: terraform-mcp-v2-canary_app
+        note: "Only exact /terraform/mcp is proxied; all other paths return 404."
       - type: overlay
-        note: "No published port or Portal membership. Registry-only public data via allowlisted proxy."
+        note: "Backend and modern bridge remain on the private Terraform overlay with Registry-only egress."
     evidence:
       runtime_smoke: "/home/devops/work/terraform-mcp/smoke.mjs"
-      failed_portal_promotion: "/home/devops/evidence/mcp/terraform-promotion-20260927"
+      promotion: "/home/devops/evidence/mcp/terraform-promotion-20260927"
 
   - id: prometheus
     name: "Prometheus Infra Read Only"
@@ -498,11 +534,12 @@ optimization_events:
 runtime_incidents:
   - id: terraform_cloudflare_protocol_20260927
     server: terraform-registry
-    observed: "Internal MCP healthy with 9 read-only Registry tools, but Cloudflare sync returned HTTP 502 during version negotiation"
-    root_cause: "Hashicorp Terraform MCP v1.3.0 uses mcp-go v0.58.0 and does not satisfy the Cloudflare server/discover probe for MCP 2026-07-28; direct probe returns HTTP 404 Invalid session ID"
-    remediation: "Keep internal-only; rollback Access app/token/server/tunnel route; test rebuild on MCP 2026-compatible SDK before any future promotion"
-    final_state: "internal-only, 1/1, no published ports, Registry-only egress intact"
-    rollback: "complete; tunnel restored version 100 -> 101; no Portal membership"
+    observed: "Native Terraform MCP v1.3.0 was healthy internally but Cloudflare sync initially returned HTTP 502 during MCP 2026 version negotiation."
+    root_cause: "Native upstream uses a legacy MCP stack that does not implement the 2026-07-28 server/discover era."
+    remediation: "Added a reusable @modelcontextprotocol/server 2.0.0 compatibility bridge that imports the legacy 9-tool schema/annotations via stdio and re-exposes them as native MCP 2026; retained Registry-only egress and no TFE/HCP credentials."
+    evidence: "server/discover 2026 PASS; tools/list=9; readOnly=9; destructive=false=9; OCI search_providers PASS; authenticated origin discover PASS; Cloudflare sync ready/connected."
+    final_state: "promoted to Main Portal as default-disabled; on_behalf=false; 9 allowlisted tools; raw origin Access-protected."
+    rollback_history: "Earlier failed attempts were fully reverted before the successful promotion; no stale Access objects or Portal memberships were retained."
 
   - id: chatwoot_protocol_sync_20260926
     server: chatwoot
