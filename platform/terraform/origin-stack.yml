@@ -1,0 +1,50 @@
+version: "3.8"
+
+services:
+  relay:
+    image: nginx@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2
+    configs:
+      - source: nginx_conf
+        target: /etc/nginx/nginx.conf
+    networks:
+      - private
+      - origin
+    ports:
+      - target: 8080
+        published: 18150
+        protocol: tcp
+        mode: host
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == azul2
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+        reservations:
+          cpus: "0.02"
+          memory: 32M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 5
+        window: 60s
+      update_config:
+        order: stop-first
+        parallelism: 1
+        failure_action: rollback
+
+configs:
+  nginx_conf:
+    external: true
+    name: terraform_origin_nginx_conf_v4_20260927
+
+networks:
+  private:
+    external: true
+    name: mcp_terraform_private
+  origin:
+    external: true
+    name: mcp_terraform_origin

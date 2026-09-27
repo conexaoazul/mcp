@@ -54,12 +54,12 @@ Cloudflare MCP Server Portals is the authoritative control plane. The client-fac
 
 | Portal | Client URL pattern | Current servers |
 |---|---|---:|
-| Main / CRM | `https://mcp.conexaoazul.com/mcp/{server_id}` | 9 |
+| Main / CRM | `https://mcp.conexaoazul.com/mcp/{server_id}` | 10 |
 | Financeiro | `https://financeiro-mcp.conexaoazul.com/mcp/{server_id}` | 6 |
 | SAMU MAIS AI | `https://samumais-mcp.conexaoazul.com/mcp/{server_id}` | 7 |
 | Portal17 | `https://portal17-mcp.conexaoazul.com/mcp/{server_id}` | 1 |
 
-Main currently includes Context7, Cloudflare Docs, Uptime Kuma, Odoo Consultas, n8n, Chatwoot, Portainer, Postiz and Prometheus. Prometheus is default-disabled with an explicit 11-tool read-only allowlist. Financeiro includes Banco Inter, three Asaas environments, Asaas Docs and Odoo Consultas. SAMU has the read-only replica plus role-specific profiles and the Conta Azul IMTECH/Savvis view. Portal17 has its dedicated Odoo 17 database toolbox server.
+Main currently includes Context7, Cloudflare Docs, Uptime Kuma, Odoo Consultas, n8n, Chatwoot, Portainer, Postiz, Prometheus and Terraform Registry. Prometheus is default-disabled with an explicit 11-tool read-only allowlist; Terraform Registry is also default-disabled with all 9 Registry-only read tools explicitly allowlisted. Financeiro includes Banco Inter, three Asaas environments, Asaas Docs and Odoo Consultas. SAMU has the read-only replica plus role-specific profiles and the Conta Azul IMTECH/Savvis view. Portal17 has its dedicated Odoo 17 database toolbox server.
 
 - The raw origin is `mcp-origin.conexaoazul.com`; the canonical `mcp.conexaoazul.com` host is Cloudflare MCP Server Portals / Agents Gateway, not a raw reverse-proxy host.
 - The initial six-server portal view is therefore incomplete: Postiz is already ready in the main Portal.
@@ -73,8 +73,8 @@ Main currently includes Context7, Cloudflare Docs, Uptime Kuma, Odoo Consultas, 
 - Apify raw origin `https://mcp-origin.conexaoazul.com/apify/mcp` is healthy at the auth boundary and returns the expected HTTP 401 Bearer challenge without credentials. Portal publication requires a verified least-privilege auth configuration.
 - Prometheus MCP is promoted behind Cloudflare Access using immutable image digest `sha256:b5202b...9560c`; protocol smoke proves 18/18 read-only, destructive=false, idempotent=true and openWorld=false, while the Main portal exposes only 11 allowlisted tools by default.
 - Playwright MCP `0.0.82` is active **internal-only** on azul2 using immutable MCR digest `sha256:77dccc...b8734`. It has no published ports, uses an isolated in-memory browser profile, disables WebMCP and service workers, and now runs on an `internal=true` overlay with no direct internet route. Browser HTTP/HTTPS is forced through a Squid proxy pinned by digest; the proxy denies private/link-local ranges and only allows `.conexaoazul.com` / `.conexaoazul.com.br`. Odoo and MágicaChat login smokes pass, while `example.com` and private IP navigation are blocked. The remaining Portal gate is tool/session authority, because 18 of 25 upstream tools are marked destructive.
-- Terraform MCP Server `1.3.0` is active **internal-only** on azul2 with exactly the public `registry` toolset: 9 tools, no TFE/HCP token, `ENABLE_TF_OPERATIONS=false`, no published ports and an `internal=true` overlay. Its dedicated Squid proxy only allows `registry.terraform.io`, while external non-Registry destinations and private IP ranges are blocked. A live Registry smoke resolved `oracle/oci` 9.3.0 and the `core_instance` resource. A 27/09 Portal promotion attempt was automatically rolled back: Cloudflare now probes MCP `2026-07-28`, while this release answers the modern `server/discover` probe with HTTP 404 `Invalid session ID`; Cloudflare therefore reports HTTP 502 during version negotiation. The runtime remains internal and green.
-- The current authoritative reconciliation is **4 portals / 23 memberships / 22 unique servers / 0 failing** after the Prometheus and Chatwoot protocol cutovers.
+- Terraform MCP Server `1.3.0` is now available in the Main Portal through a reusable MCP 2026 compatibility bridge. The official Terraform backend remains restricted to the public `registry` toolset with 9 read-only tools, no TFE/HCP token and `ENABLE_TF_OPERATIONS=false`; its egress remains limited to `registry.terraform.io`. The bridge uses `@modelcontextprotocol/server` 2.0.0 to import the legacy tool schemas/annotations over stdio and re-expose them as native MCP `2026-07-28`. `server/discover`, `tools/list` and a live OCI `search_providers` call all pass; Cloudflare reports ready/connected with 9/9 read-only tools. The Main membership is `default_disabled=true`, `on_behalf=false`, and all 9 Registry tools are explicitly allowlisted.
+- The expected authoritative reconciliation after Terraform promotion is **4 portals / 24 memberships / 23 unique servers / 0 failing**; rerun the Cloudflare Portal auditor after merge before treating those counts as final evidence.
 - There are code-ready assets for SAMU/Blue Database, Asaas, Inter and BlueApps19 MCP modules.
 - Any credential or tunnel token currently embedded in a Docker service argument must be rotated after a secret-backed replacement is prepared.
 
@@ -86,7 +86,7 @@ Main currently includes Context7, Cloudflare Docs, Uptime Kuma, Odoo Consultas, 
 4. Publish additional internal MCPs only after authority is constrained: Cloudflare, Apify, Blue Odoo Ops and Transcription.
 5. Keep Playwright internal-only while reviewing an explicit minimal tool allowlist; the egress/SSRF boundary is now implemented and proven.
 6. Add identity-bearing Playwright smoke only after storage-state/secrets handling is approved and secret-backed.
-7. Keep Terraform Registry MCP internal-only until an MCP `2026-07-28` compatibility build passes `server/discover` and `tools/list`; HCP/TFE credentials and broader toolsets remain separate explicit approvals.
+7. Keep Terraform Registry default-disabled in Main; broader toolsets, HCP/TFE credentials or Terraform execution remain separate explicit approvals.
 8. Integrate Grafana/Loki for observability once a dedicated Viewer service-account token is available.
 9. Retire duplicated bridges and direct host ports only after equivalent Portal routes are green.
 
@@ -103,3 +103,7 @@ Main currently includes Context7, Cloudflare Docs, Uptime Kuma, Odoo Consultas, 
 - `terraform/egress-stack.yml`: dedicated Registry egress proxy stack.
 - `terraform/squid.conf`: exact Registry domain allowlist and private-range deny policy.
 - `terraform/smoke.mjs`: tool-surface assertion plus live Oracle/OCI Registry query.
+- `compat/legacy-v2-bridge/`: reusable legacy-stdio → MCP 2026 bridge using dynamic JSON Schema registration.
+- `terraform/modern-stack.yml`: Terraform MCP 2026 bridge deployment, no published ports.
+- `terraform/origin-stack.yml`: narrow host relay used only by Cloudflare Tunnel.
+- `terraform/origin-nginx.conf`: exact-path `/terraform/mcp` proxy; every other path returns 404.

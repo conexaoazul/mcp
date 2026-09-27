@@ -1,0 +1,8 @@
+{
+  "name": "ca-mcp-legacy-v2-bridge",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0"
+  }
+}

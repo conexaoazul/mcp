@@ -104,9 +104,16 @@ jobs:
           import pathlib, yaml
           catalog = yaml.safe_load(open("platform/catalog.yaml"))
           t = next(s for s in catalog["servers"] if s["id"] == "terraform-registry")
-          assert t["portal_enabled"] is False
-          assert t["published_ports"] == 0
-          assert t["network_internal"] is True
+
+          assert t["portal_enabled"] is True
+          assert t["portal_tool_count"] == 9
+          assert t["backend"]["published_ports"] == 0
+          assert t["backend"]["network_internal"] is True
+          assert t["backend"]["toolsets"] == ["registry"]
+          assert t["modern_bridge"]["published_ports"] == 0
+          assert t["modern_bridge"]["modern_protocol"] == "2026-07-28"
+          assert t["modern_bridge"]["image"] == "ghcr.io/conexaoazul/mcp-legacy-v2-bridge@sha256:21e789a8920fd1b7956ac4b88d72b886bad0c5fedfa1be48dcdf6134715829c9"
+
           assert t["runtime_policy"]["toolsets"] == ["registry"]
           assert t["runtime_policy"]["enable_tf_operations"] is False
           assert t["runtime_policy"]["hcp_tfe_tools"] is False
@@ -115,14 +122,30 @@ jobs:
           assert t["egress_proxy"]["direct_egress"] is False
           assert t["egress_proxy"]["allowed_domains"] == ["registry.terraform.io"]
           assert t["tool_surface"]["total"] == 9
-          gate = t["cloudflare_portal_gate"]
-          assert gate["status"] == "blocked"
-          assert gate["required_protocol"] == "2026-07-28"
-          assert gate["rollback_complete"] is True
-          assert "FAIL:" in t["protocol_smoke"]["modern_server_discover_2026_07_28"]
+          assert t["tool_surface"]["read_only"] == 9
+          assert t["tool_surface"]["destructive_false"] == 9
 
-          stack = yaml.safe_load(open("platform/terraform/stack.yml"))
-          app = stack["services"]["app"]
+          smoke = t["protocol_smoke"]
+          assert smoke["modern_server_discover_2026_07_28"] == "PASS"
+          assert smoke["modern_tools_list"] == 9
+          assert smoke["modern_read_only"] == 9
+          assert smoke["modern_destructive_false"] == 9
+          assert smoke["modern_oracle_oci_query"] == "PASS"
+          assert smoke["authenticated_origin_discover"] == "PASS"
+          assert smoke["unauthenticated_origin_http"] == 403
+
+          gate = t["cloudflare_portal_gate"]
+          assert gate["status"] == "promoted"
+          assert gate["required_protocol"] == "2026-07-28"
+          assert gate["server_status"] == "ready"
+          assert gate["authentication_status"] == "connected"
+          assert gate["access_protected"] is True
+          assert gate["main_portal"]["default_disabled"] is True
+          assert gate["main_portal"]["on_behalf"] is False
+          assert gate["main_portal"]["allowlisted_tools"] == 9
+
+          backend = yaml.safe_load(open("platform/terraform/stack.yml"))
+          app = backend["services"]["app"]
           assert "ports" not in app
           args = app["command"]
           assert "--toolsets" in args
@@ -131,6 +154,41 @@ jobs:
           assert env.get("ENABLE_TF_OPERATIONS") == "false"
           assert "TFE_TOKEN" not in env
           assert "TFE_ADDRESS" not in env
+
+          modern = yaml.safe_load(open("platform/terraform/modern-stack.yml"))
+          modern_app = modern["services"]["app"]
+          assert "ports" not in modern_app
+          assert modern_app["image"] == t["modern_bridge"]["image"]
+          assert modern_app["networks"] == ["private"]
+          modern_env = modern_app.get("environment", {})
+          assert modern_env.get("ENABLE_TF_OPERATIONS") == "false"
+          assert "TFE_TOKEN" not in modern_env
+          assert "TFE_ADDRESS" not in modern_env
+
+          origin = yaml.safe_load(open("platform/terraform/origin-stack.yml"))
+          relay = origin["services"]["relay"]
+          assert relay["image"].startswith("nginx@sha256:")
+          ports = relay.get("ports", [])
+          assert len(ports) == 1
+          assert ports[0]["published"] == 18150
+          assert ports[0]["target"] == 8080
+          assert ports[0]["mode"] == "host"
+
+          nginx = pathlib.Path("platform/terraform/origin-nginx.conf").read_text()
+          assert "location = /terraform/mcp" in nginx
+          assert "proxy_pass http://terraform-mcp-v2-canary_app:8080/terraform/mcp;" in nginx
+          assert "location / {" in nginx
+          assert "return 404;" in nginx
+          assert "$request_body" not in nginx
+
+          bridge = pathlib.Path("platform/compat/legacy-v2-bridge/index.mjs").read_text()
+          bridge_pkg = pathlib.Path("platform/compat/legacy-v2-bridge/package.json").read_text()
+          bridge_docker = pathlib.Path("platform/compat/legacy-v2-bridge/Dockerfile").read_text()
+          assert 'protocolVersion: "2025-11-25"' in bridge
+          assert "fromJsonSchema" in bridge
+          assert 'await serveStdio(() => makeServer())' in bridge
+          assert '"@modelcontextprotocol/server": "2.0.0"' in bridge_pkg
+          assert "supergateway@4.0.0" in bridge_docker
 
           squid = pathlib.Path("platform/terraform/squid.conf").read_text()
           for required in [
@@ -144,5 +202,5 @@ jobs:
               "http_access deny all",
           ]:
               assert required in squid, required
-          print("Terraform Registry boundary ok")
+          print("Terraform Registry modern boundary ok")
           PY

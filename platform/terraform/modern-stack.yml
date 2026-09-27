@@ -1,0 +1,38 @@
+version: "3.8"
+
+services:
+  app:
+    image: ghcr.io/conexaoazul/mcp-legacy-v2-bridge@sha256:21e789a8920fd1b7956ac4b88d72b886bad0c5fedfa1be48dcdf6134715829c9
+    environment:
+      HTTPS_PROXY: "http://terraform-egress_proxy:3128"
+      HTTP_PROXY: "http://terraform-egress_proxy:3128"
+      NO_PROXY: "127.0.0.1,localhost"
+      ENABLE_TF_OPERATIONS: "false"
+    networks:
+      - private
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == azul2
+      resources:
+        limits:
+          cpus: "0.75"
+          memory: 512M
+        reservations:
+          cpus: "0.05"
+          memory: 128M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 5
+        window: 60s
+      update_config:
+        order: stop-first
+        parallelism: 1
+        failure_action: rollback
+
+networks:
+  private:
+    external: true
+    name: mcp_terraform_private
